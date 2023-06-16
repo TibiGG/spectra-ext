@@ -33,8 +33,13 @@ import static tau.smlab.syntech.richcontrollerwalker.ui.Activator.PLUGIN_NAME;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.SWT;
@@ -64,6 +69,7 @@ import tau.smlab.syntech.ui.extension.console.ConsolePrinter;
 import tau.smlab.syntech.ui.extension.SyntechAction;
 
 public class ControllerWalkerAction extends SyntechAction<ControllerWalkerActionsID> {
+	private IFile specFile;
 	// dialog;
 	@Override
 	public String getPluginName() {
@@ -86,6 +92,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 	@Override
 	public void run(ControllerWalkerActionsID modulesPlayedByUser, IFile specFile) { // Called once upon start.
 		// create a new Symbolic Rich Controller Walker instance
+		this.specFile = specFile;
 		SymbolicWalker sw = createNewSymbolicWalker(PreferencePage.getPreferences(),
 				modulesPlayedByUser.toUserModule());
 
@@ -96,6 +103,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			return;
 		}
 
+		// TODO: make WalkDialog a separate class, and reinstantiate it on reset
 		WalkDialog dialog = new WalkDialog(shell, "Rich Controller Walker") {
 			private String loadedLogFile;
 			private final DDFilterHelper ddFltrHelper = new DDFilterHelper();
@@ -105,10 +113,10 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			@Override
 			protected void buttonPressed(final int buttonId) {
 				switch (buttonId) {
-				case IDialogConstants.OK_ID:
+				case IDialogConstants.NEXT_ID:
 					okPressed();
 					break;
-				case IDialogConstants.CANCEL_ID:
+				case IDialogConstants.CLOSE_ID:
 					cancelPressed();
 					break;
 				case IDialogConstants.OPEN_ID:
@@ -119,6 +127,9 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 					break;
 				case IDialogConstants.FINISH_ID:
 					resetSteps();
+					break;
+				case IDialogConstants.RETRY_ID:
+					fixSteps();
 					break;
 				case IDialogConstants.SKIP_ID:
 					skipToEnd();
@@ -269,6 +280,39 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 				updateUI();
 				updateBreakpoints();
 			}
+			
+			protected void fixSteps() {
+				// Create log and get name of the log
+				sw.close();
+				// Call Python pipeline code, with two arguments:
+				// 1. log_file: current log file of trace
+				// 2. new_spec_file: new name of spec file
+				String specFilePath = specFile.getLocation().toString();
+				String newSpecFilePath = incrementNumber(specFilePath);
+				IPath newSpecPath = Path.fromOSString(newSpecFilePath);
+				IFile newSpecFile = ResourcesPlugin.getWorkspace().getRoot().getFileForLocation(newSpecPath);
+
+				// Reset the environment walker with new spec
+				specFile = newSpecFile;
+			}
+			
+			private String incrementNumber(String inputFile) {
+		        Pattern pattern = Pattern.compile("([a-zA-Z0-9]+_)?([0-9]+)?(\\.spectra)");
+		        Matcher matcher = pattern.matcher(inputFile);
+
+		        if (matcher.find()) {
+		            String prefix = matcher.group(1);
+		            String numberString = matcher.group(2);
+		            String suffix = matcher.group(3);
+
+		            int number = (numberString != null) ? Integer.parseInt(numberString) : 0;
+		            int incrementedNumber = number + 1;
+
+		            return prefix + incrementedNumber + suffix;
+		        }
+
+		        return inputFile;
+		    }
 
 			@Override
 			protected void cancelPressed() {
@@ -608,15 +652,15 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 		}
 		consolePrinter.showConsole(activePage);
 		try {
-			return new SymbolicWalker(consolePrinter.getPrintStream(), specFile, userModule, preferences);
+			return new SymbolicWalker(consolePrinter.getPrintStream(), this.specFile, userModule, preferences);
 		} catch (IOException e) {
 			e.printStackTrace();
 			MessageDialog.openInformation(shell, PLUGIN_NAME,
 					"Mismatched/Missing controller. Please synthesize a symbolic controller for this spectra file ("
-							+ specFile.getName() + ").");
+							+ this.specFile.getName() + ").");
 			throw new IllegalArgumentException(
 					"Mismatched/Missing controller. Please synthesize a symbolic controller for this spectra file ("
-							+ specFile.getName() + ").");
+							+ this.specFile.getName() + ").");
 		}
 	}
 }

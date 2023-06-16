@@ -103,6 +103,7 @@ public abstract class WalkDialog extends TitleAreaDialog {
 	protected TableViewer consoleTableViewer;
 
 	protected Button resetBtn;
+	protected Button fixSpecBtn;
 	protected Button stepBackButton;
 	protected Button nextButton;
 	protected Button closeBtn;
@@ -163,7 +164,7 @@ public abstract class WalkDialog extends TitleAreaDialog {
 		setTitle(dialogTitle);
 		setMessage("Execute the symbolic controller by choosing next moves", IMessageProvider.INFORMATION);
 		// initially disable OK button
-		getButton(IDialogConstants.OK_ID).setEnabled(false);
+		getButton(IDialogConstants.NEXT_ID).setEnabled(false);
 		shell = this.getShell();
 		shell.addListener(SWT.Close, new Listener() {
 			@Override
@@ -188,8 +189,8 @@ public abstract class WalkDialog extends TitleAreaDialog {
 		loadLogBtn = createButton(parent, IDialogConstants.OPEN_ID, "Load Log", true);
 		skipToStartBtn = createButton(parent, IDialogConstants.STOP_ID, "Skip to start", false);
 		SkipToEndBtn = createButton(parent, IDialogConstants.SKIP_ID, "Skip to end", false);
-		getButton(IDialogConstants.SKIP_ID).setEnabled(false);
-		getButton(IDialogConstants.STOP_ID).setEnabled(false);
+		skipToStartBtn.setEnabled(false);
+		SkipToEndBtn.setEnabled(false);
 	}
 
 	private void createSpacer(Composite parent) {
@@ -204,10 +205,12 @@ public abstract class WalkDialog extends TitleAreaDialog {
 
 	private void createNavigationButtons(Composite parent) {
 		resetBtn = createButton(parent, IDialogConstants.FINISH_ID, "Reset", false);
+		fixSpecBtn = createButton(parent, IDialogConstants.RETRY_ID, "Fix Spec", false);
+		fixSpecBtn.setEnabled(false);
 		stepBackButton = createButton(parent, IDialogConstants.BACK_ID, "Step Back", true);
 		stepBackButton.setEnabled(false);
-		nextButton = createButton(parent, IDialogConstants.OK_ID, "Next Step", true);
-		closeBtn = createButton(parent, IDialogConstants.CANCEL_ID, "Close", false);
+		nextButton = createButton(parent, IDialogConstants.NEXT_ID, "Next Step", true);
+		closeBtn = createButton(parent, IDialogConstants.CLOSE_ID, "Close", false);
 	}
 
 	// Dialog Area
@@ -457,9 +460,9 @@ protected abstract void selectedVariablesCombo();
 				String[] selection = possibleStepsSWT.getSelection();
 
 				if (selection == null || selection.length == 0) {
-					getButton(IDialogConstants.OK_ID).setEnabled(false);
+					getButton(IDialogConstants.NEXT_ID).setEnabled(false);
 				} else if (selection.length == 1) {
-					getButton(IDialogConstants.OK_ID).setEnabled(true);
+					getButton(IDialogConstants.NEXT_ID).setEnabled(true);
 				}
 			}
 		});

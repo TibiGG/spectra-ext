@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: RichControllerWalkerUI
+Bundle-Name: NOTRichControllerWalkerUI
 Bundle-SymbolicName: tau.smlab.syntech.richcontrollerwalker.ui;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: tau.smlab.syntech.richcontrollerwalker.ui.Activator

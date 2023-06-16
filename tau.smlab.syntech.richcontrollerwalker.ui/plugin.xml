@@ -6,7 +6,7 @@
  <extension point="org.eclipse.ui.menus">
   <menuContribution locationURI="popup:tau.smlab.syntech.ui.syntechaddonsmenu">
 	<menu
-       label="Rich Controller Walker">
+       label="NOT Rich Controller Walker">
     <dynamic 
               class="tau.smlab.syntech.richcontrollerwalker.ui.action.ControllerWalkerAction"
               id="tau.smlab.syntech.richcontrollerwalker.ui.action.ControllerWalkerAction">
@@ -22,7 +22,7 @@
       		category="tau.smlab.syntech.ui.preferences.PreferencePage"
             class="tau.smlab.syntech.richcontrollerwalker.ui.preferences.PreferencePage"
             id="tau.smlab.syntech.richcontrollerwalker.ui.preferences.PreferencePage"
-            name="Rich Controller Walker">
+            name="NOT Rich Controller Walker">
       </page>
 </extension>
 <extension

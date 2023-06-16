@@ -120,7 +120,7 @@ public class VarsDialog extends TitleAreaDialog {
 		// setMessage("Execute the symbolic controller by choosing next moves",
 		// IMessageProvider.INFORMATION);
 		// initially disable OK button
-		// getButton(IDialogConstants.OK_ID).setEnabled(false);
+		// getButton(IDialogConstants.NEXT_ID).setEnabled(false);
 		shell = this.getShell();
 		shell.addListener(SWT.Close, new Listener() {
 			@Override
