@@ -276,6 +276,10 @@ abstract class AbstractWalker {
 	public String getLogFileName() {
 		return logger.getFileName();
 	}
+	
+	public String getLogFullPath() {
+		return logger.getFullPath();
+	}
 
 	public void toggleLog() {
 		logger.toggle();

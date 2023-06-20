@@ -65,6 +65,13 @@ final class Logger {
 	}
 
 	/**
+	 * Gets full path to the current log file
+	 */
+	String getFullPath() {
+		return generating ? log.getFullPath() : "";
+	}
+
+	/**
 	 * Toggles logging state
 	 */
 	void toggle() {
@@ -148,7 +155,7 @@ final class Logger {
 				clear();
 				return true;
 			}
-			try (FileWriter writer = new FileWriter(fullPath());) {
+			try (FileWriter writer = new FileWriter(getFullPath());) {
 				writer.write(String.join(LINE_SEPARATOR, loggedStatesStack));
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -195,7 +202,7 @@ final class Logger {
 			return state.toString();
 		}
 
-		private String fullPath() {
+		public String getFullPath() {
 			return filePath + fileName;
 		}
 

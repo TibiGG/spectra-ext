@@ -206,7 +206,7 @@ public abstract class WalkDialog extends TitleAreaDialog {
 	private void createNavigationButtons(Composite parent) {
 		resetBtn = createButton(parent, IDialogConstants.FINISH_ID, "Reset", false);
 		fixSpecBtn = createButton(parent, IDialogConstants.RETRY_ID, "Fix Spec", false);
-		fixSpecBtn.setEnabled(false);
+		fixSpecBtn.setEnabled(true); // TODO: re-disable in production
 		stepBackButton = createButton(parent, IDialogConstants.BACK_ID, "Step Back", true);
 		stepBackButton.setEnabled(false);
 		nextButton = createButton(parent, IDialogConstants.NEXT_ID, "Next Step", true);

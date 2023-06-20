@@ -31,10 +31,11 @@ package tau.smlab.syntech.richcontrollerwalker.ui.action;
 import static tau.smlab.syntech.richcontrollerwalker.ui.Activator.PLUGIN_NAME;
 
 import java.io.IOException;
+import java.io.File;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -69,7 +70,6 @@ import tau.smlab.syntech.ui.extension.console.ConsolePrinter;
 import tau.smlab.syntech.ui.extension.SyntechAction;
 
 public class ControllerWalkerAction extends SyntechAction<ControllerWalkerActionsID> {
-	private IFile specFile;
 	// dialog;
 	@Override
 	public String getPluginName() {
@@ -92,7 +92,6 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 	@Override
 	public void run(ControllerWalkerActionsID modulesPlayedByUser, IFile specFile) { // Called once upon start.
 		// create a new Symbolic Rich Controller Walker instance
-		this.specFile = specFile;
 		SymbolicWalker sw = createNewSymbolicWalker(PreferencePage.getPreferences(),
 				modulesPlayedByUser.toUserModule());
 
@@ -106,6 +105,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 		// TODO: make WalkDialog a separate class, and reinstantiate it on reset
 		WalkDialog dialog = new WalkDialog(shell, "Rich Controller Walker") {
 			private String loadedLogFile;
+			private IFile curSpecFile = specFile;
 			private final DDFilterHelper ddFltrHelper = new DDFilterHelper();
 			protected final IMask mask = new Mask();
 			DisplayedOptions dispOpts;
@@ -173,6 +173,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 				getButton(IDialogConstants.SKIP_ID).setEnabled(mode.isGuided() && !sw.isRouteEnd());
 				getButton(IDialogConstants.STOP_ID).setEnabled(mode.isGuided() && !sw.isRouteStart());
 				nextButton.setEnabled(!sw.isDeadlock() && selectedOptionIndex >= 0); // Todo: recheck
+				// fixSpecBtn.setEnabled(sw.isDeadlock()); // Todo: Check if this is the place fixSpecBtn should be enabled
 				genLogBtn.setSelection(sw.isGeneratingLog());
 				genLoglabel.setText(sw.isGeneratingLog() ? "Writing log to: " + sw.getLogFileName() : "");
 				genLoglabel.getParent().layout();
@@ -282,36 +283,119 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			}
 			
 			protected void fixSteps() {
-				// Create log and get name of the log
+				// Get name of the log, then create it
+				// TODO: verify if reset or close is better
+				String logFile = sw.getLogFullPath();
 				sw.close();
-				// Call Python pipeline code, with two arguments:
+				// sw.reset();
+
+				// Call Python pipeline code, with three arguments:
+				// 0. spec_file: current spec file
+				String specFilePath = curSpecFile.getLocation().toString();
+
 				// 1. log_file: current log file of trace
+
 				// 2. new_spec_file: new name of spec file
-				String specFilePath = specFile.getLocation().toString();
 				String newSpecFilePath = incrementNumber(specFilePath);
-				IPath newSpecPath = Path.fromOSString(newSpecFilePath);
-				IFile newSpecFile = ResourcesPlugin.getWorkspace().getRoot().getFileForLocation(newSpecPath);
+				
+				// Call python pipeline code
+				boolean hasFixedSuccessfully = fixerRun(specFilePath, logFile, newSpecFilePath);
 
 				// Reset the environment walker with new spec
-				specFile = newSpecFile;
+				IPath newSpecPath = Path.fromOSString(newSpecFilePath);
+				IFile newSpecFile = ResourcesPlugin.getWorkspace().getRoot().getFileForLocation(newSpecPath);
+				curSpecFile = newSpecFile;
+
+
+				if (hasFixedSuccessfully) {
+					MessageDialog.openInformation(shell, PLUGIN_NAME,
+							"Spec has been fixed successfully. Starting from new spec...");
+				} else {
+					MessageDialog.openInformation(shell, PLUGIN_NAME,
+							"Fixer failed...you may exit the program...");
+				}
 			}
 			
-			private String incrementNumber(String inputFile) {
-		        Pattern pattern = Pattern.compile("([a-zA-Z0-9]+_)?([0-9]+)?(\\.spectra)");
-		        Matcher matcher = pattern.matcher(inputFile);
+			/*
+			 * 
+			 */
+			private boolean fixerRun(String specFilePath, String logFile, String newSpecFilePath) {
+				String condaEnvName = "logic";
+				String pythonScript = "/Users/tg4018/Documents/PhD/SpectraASPTranslators/pipeline.py";
+				// String workingDirectory = "/Users/tg4018/Documents/PhD/SpectraASPTranslators";
+				String[] pythonScriptArgs = {"-s", specFilePath, "-t", logFile, "-o", newSpecFilePath};
 
-		        if (matcher.find()) {
-		            String prefix = matcher.group(1);
-		            String numberString = matcher.group(2);
-		            String suffix = matcher.group(3);
+				// Set the necessary environment variables
+		        String condaPath = "/Users/tg4018/opt/anaconda3/bin";
+		        String condaEnvPath = "/Users/tg4018/opt/anaconda3/envs/" + condaEnvName;
+		        String[] envp = {
+		            "PATH=" + condaPath + ":" + System.getenv("PATH"),
+		            "CONDA_DEFAULT_ENV=" + condaEnvName,
+		            "CONDA_PREFIX=" + condaEnvPath
+		        };
+		        
+				// Execute the command
+				// Wait for the process to complete and get the exit code
+		        int exitCode;
+		        try {
+		            String command = "conda run -n " + condaEnvName + " python " + pythonScript;
+		            command = command + " " + String.join(" ", pythonScriptArgs);
+					System.out.println(command);
 
-		            int number = (numberString != null) ? Integer.parseInt(numberString) : 0;
-		            int incrementedNumber = number + 1;
 
-		            return prefix + incrementedNumber + suffix;
+		        	ProcessBuilder processBuilder = new ProcessBuilder("zsh", "-c", command);
+		            processBuilder.environment().put("PATH", condaPath + ":" + System.getenv("PATH"));
+
+		            Process process = processBuilder.start();
+		            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+		            String line;
+		            while ((line = reader.readLine()) != null) {
+		                System.out.println(line);
+		            }
+
+		            exitCode = process.waitFor();
+		            System.out.println("Exit code: " + exitCode);
+		        } catch (IOException | InterruptedException e) {
+		        	exitCode = -1;
+		            e.printStackTrace();
 		        }
 
-		        return inputFile;
+
+				// Handle the exit code as needed
+				if (exitCode == 0) {
+					System.out.println("Python script executed successfully.");
+				} else {
+					System.out.println("Python script execution failed. Exit code: " + exitCode);
+				}
+				return exitCode == 0;
+			}
+
+			private String incrementNumber(String filePath) {
+				File file = new File(filePath);
+		        String parentPath = file.getParent();
+		        String fileName = file.getName();
+
+		        int underscoreIndex = fileName.lastIndexOf("_");
+		        int dotIndex = fileName.lastIndexOf(".");
+		        String baseName;
+		        String extension;
+
+		        if (underscoreIndex != -1 && dotIndex != -1 && underscoreIndex < dotIndex) {
+		            baseName = fileName.substring(0, underscoreIndex);
+		            extension = fileName.substring(dotIndex);
+		        } else {
+		            baseName = fileName.substring(0, dotIndex);
+		            extension = fileName.substring(dotIndex);
+		        }
+
+		        int number = 0;
+		        String newFileName;
+		        do {
+		            newFileName = baseName + "_" + number + extension;
+		            number++;
+		        } while (new File(parentPath, newFileName).exists());
+
+		        return new File(parentPath, newFileName).getPath();
 		    }
 
 			@Override
@@ -652,15 +736,15 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 		}
 		consolePrinter.showConsole(activePage);
 		try {
-			return new SymbolicWalker(consolePrinter.getPrintStream(), this.specFile, userModule, preferences);
+			return new SymbolicWalker(consolePrinter.getPrintStream(), specFile, userModule, preferences);
 		} catch (IOException e) {
 			e.printStackTrace();
 			MessageDialog.openInformation(shell, PLUGIN_NAME,
 					"Mismatched/Missing controller. Please synthesize a symbolic controller for this spectra file ("
-							+ this.specFile.getName() + ").");
+							+ specFile.getName() + ").");
 			throw new IllegalArgumentException(
 					"Mismatched/Missing controller. Please synthesize a symbolic controller for this spectra file ("
-							+ this.specFile.getName() + ").");
+							+ specFile.getName() + ").");
 		}
 	}
 }
