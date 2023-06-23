@@ -93,7 +93,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 	public void run(ControllerWalkerActionsID modulesPlayedByUser, IFile specFile) { // Called once upon start.
 		// create a new Symbolic Rich Controller Walker instance
 		SymbolicWalker sw = createNewSymbolicWalker(PreferencePage.getPreferences(),
-				modulesPlayedByUser.toUserModule());
+				modulesPlayedByUser.toUserModule(), specFile);
 
 		if (sw.isDeadlock()) {
 			MessageDialog.openInformation(shell, PLUGIN_NAME,
@@ -106,6 +106,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 		WalkDialog dialog = new WalkDialog(shell, "Rich Controller Walker") {
 			private String loadedLogFile;
 			private IFile curSpecFile = specFile;
+			SymbolicWalker curSW = sw;
 			private final DDFilterHelper ddFltrHelper = new DDFilterHelper();
 			protected final IMask mask = new Mask();
 			DisplayedOptions dispOpts;
@@ -147,7 +148,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 			private void processReply(IOptionsReply reply) {
 				dispOpts = null;
-				Mode mode = sw.getMode();
+				Mode mode = curSW.getMode();
 				if (mode.isFree() && !reply.isEmpty()) {
 					dispOpts = (DisplayedOptions) reply;
 				}
@@ -160,27 +161,27 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			}
 
 			private void updateUI() {
-				Mode mode = sw.getMode();
+				Mode mode = curSW.getMode();
 
-				FilterSummary ddf_summary = sw.getFilterSummary(FilterType.DROPDOWN);
+				FilterSummary ddf_summary = curSW.getFilterSummary(FilterType.DROPDOWN);
 				ddFilterLabel.setText(ddf_summary.getExpression());
-				FilterSummary tf_summary = sw.getFilterSummary(FilterType.TEXT);
+				FilterSummary tf_summary = curSW.getFilterSummary(FilterType.TEXT);
 				filterText.setText(tf_summary.getExpression());
 				updateModeLabel();
 				setPossibleStepsTitle();
 				loadMoreStepsBtn.setEnabled(hasMoreOptions());
-				stepBackButton.setEnabled(sw.canStepBack());
-				getButton(IDialogConstants.SKIP_ID).setEnabled(mode.isGuided() && !sw.isRouteEnd());
-				getButton(IDialogConstants.STOP_ID).setEnabled(mode.isGuided() && !sw.isRouteStart());
-				nextButton.setEnabled(!sw.isDeadlock() && selectedOptionIndex >= 0); // Todo: recheck
-				// fixSpecBtn.setEnabled(sw.isDeadlock()); // Todo: Check if this is the place fixSpecBtn should be enabled
-				genLogBtn.setSelection(sw.isGeneratingLog());
-				genLoglabel.setText(sw.isGeneratingLog() ? "Writing log to: " + sw.getLogFileName() : "");
+				stepBackButton.setEnabled(curSW.canStepBack());
+				getButton(IDialogConstants.SKIP_ID).setEnabled(mode.isGuided() && !curSW.isRouteEnd());
+				getButton(IDialogConstants.STOP_ID).setEnabled(mode.isGuided() && !curSW.isRouteStart());
+				nextButton.setEnabled(!curSW.isDeadlock() && selectedOptionIndex >= 0); // Todo: recheck
+				fixSpecBtn.setEnabled(curSW.isDeadlock()); // Todo: Check if this is the place fixSpecBtn should be enabled
+				genLogBtn.setSelection(curSW.isGeneratingLog());
+				genLoglabel.setText(curSW.isGeneratingLog() ? "Writing log to: " + curSW.getLogFileName() : "");
 				genLoglabel.getParent().layout();
 				updateRemoveAllBpsBtn();
-				if (!sw.getMode().isFree()) {
+				if (!curSW.getMode().isFree()) {
 					reachabilityBtn.setEnabled(false);
-					setLoadLogBtnText(sw.getMode().isReach() ? "Exit reachability" : "Exit log");
+					setLoadLogBtnText(curSW.getMode().isReach() ? "Exit reachability" : "Exit log");
 					stepBackButton.setText("Previous State");
 					nextButton.setText("Next State");
 				} else {
@@ -192,7 +193,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			}
 
 			private boolean hasMoreOptions() {
-				return sw.getMode().isFree() && dispOpts != null && dispOpts.hasMoreOptions();
+				return curSW.getMode().isFree() && dispOpts != null && dispOpts.hasMoreOptions();
 			}
 
 			private void loadMoreOptions() {
@@ -201,8 +202,8 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			}
 
 			private void setPossibleStepsTitle() {
-				Mode mode = sw.getMode();
-				Mod turn = sw.getTurn();
+				Mode mode = curSW.getMode();
+				Mod turn = curSW.getTurn();
 				if (mode.isFree()) {
 					stepsGrp.setText("Next possible steps for " + turn);
 				} else {
@@ -211,17 +212,17 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			}
 
 			private void updateModeLabel() {
-				Mode mode = sw.getMode();
+				Mode mode = curSW.getMode();
 				String modeLabelText = "MODE: " + mode;
 				switch (mode) {
 				case FREE:
-					modeLabelText += "\nUser plays: " + sw.getUser() + ".";
+					modeLabelText += "\nUser plays: " + curSW.getUser() + ".";
 					break;
 				case LOG:
 					modeLabelText += "\nWalking on log file: " + loadedLogFile + ".";
 				case REACH:
-					modeLabelText += "\nNumber of states remaining on guided route: " + sw.numRemainingRouteStates()
-							+ " out of " + sw.numRouteStates() + ".";
+					modeLabelText += "\nNumber of states remaining on guided route: " + curSW.numRemainingRouteStates()
+							+ " out of " + curSW.numRouteStates() + ".";
 					break;
 				default:
 					throw new IllegalArgumentException("Unexpected value: " + mode);
@@ -247,14 +248,14 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 					selectedOptionIndex = possibleStepsSWT.getSelectionIndex(); // TODO: is this still necessary?
 				}
 				IOptionsReply reply = null;
-				if (sw.getMode().isGuided()) {
-					reply = sw.doNextStep(-1);
+				if (curSW.getMode().isGuided()) {
+					reply = curSW.doNextStep(-1);
 				} else {
 					int id = dispOpts.getOptId(selectedOptionIndex);
 					if (dispOpts.getType() == OptionsType.INCLUSIONS) {
-						reply = sw.selectInclusion(id);
+						reply = curSW.selectInclusion(id);
 					} else {
-						reply = sw.doNextStep(id);
+						reply = curSW.doNextStep(id);
 					}
 				}
 				processAndUpdateOptions(reply);
@@ -266,18 +267,18 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 			protected void backPressed() { // Step back
 				// clear the prints which have been generated by the recent steps
-				processAndUpdateOptions(sw.stepBack());
+				processAndUpdateOptions(curSW.stepBack());
 				updateUI();
 				updateBreakpoints();
 			}
 
 			protected void resetSteps() {
 				// if log is being generated - warn user that reseting will erase log
-				if (sw.isGeneratingLog() && popupDialog("Reset Walk",
+				if (curSW.isGeneratingLog() && popupDialog("Reset Walk",
 						"Resetting walk will clear the currently generated log.") == SWT.CANCEL) {
 					return;
 				}
-				processAndUpdateOptions(sw.reset());
+				processAndUpdateOptions(curSW.reset());
 				updateUI();
 				updateBreakpoints();
 			}
@@ -285,9 +286,9 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			protected void fixSteps() {
 				// Get name of the log, then create it
 				// TODO: verify if reset or close is better
-				String logFile = sw.getLogFullPath();
-				sw.close();
-				// sw.reset();
+				String logFile = curSW.getLogFullPath();
+				curSW.close();
+				// curSW.reset();
 
 				// Call Python pipeline code, with three arguments:
 				// 0. spec_file: current spec file
@@ -309,11 +310,13 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 				if (hasFixedSuccessfully) {
 					MessageDialog.openInformation(shell, PLUGIN_NAME,
-							"Spec has been fixed successfully. Starting from new spec...");
+							"Spec has been fixed successfully. Starting from new spec at " + newSpecFilePath + "...");
 				} else {
 					MessageDialog.openInformation(shell, PLUGIN_NAME,
 							"Fixer failed...you may exit the program...");
 				}
+				// create a new Symbolic Rich Controller Walker instance
+				curSW = createNewSymbolicWalker(PreferencePage.getPreferences(), modulesPlayedByUser.toUserModule(), curSpecFile);
 			}
 			
 			/*
@@ -327,12 +330,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 				// Set the necessary environment variables
 		        String condaPath = "/Users/tg4018/opt/anaconda3/bin";
-		        String condaEnvPath = "/Users/tg4018/opt/anaconda3/envs/" + condaEnvName;
-		        String[] envp = {
-		            "PATH=" + condaPath + ":" + System.getenv("PATH"),
-		            "CONDA_DEFAULT_ENV=" + condaEnvName,
-		            "CONDA_PREFIX=" + condaEnvPath
-		        };
+				String homebrewPath = "/opt/homebrew/bin";
 		        
 				// Execute the command
 				// Wait for the process to complete and get the exit code
@@ -344,10 +342,11 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 
 		        	ProcessBuilder processBuilder = new ProcessBuilder("zsh", "-c", command);
-		            processBuilder.environment().put("PATH", condaPath + ":" + System.getenv("PATH"));
+		            processBuilder.environment().put("PATH", homebrewPath + ":" + condaPath + ":" + System.getenv("PATH"));
 
 		            Process process = processBuilder.start();
 		            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+		            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 		            String line;
 		            while ((line = reader.readLine()) != null) {
 		                System.out.println(line);
@@ -355,6 +354,12 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 		            exitCode = process.waitFor();
 		            System.out.println("Exit code: " + exitCode);
+		            if (exitCode != 0) {
+						System.out.println("Error message:");
+		            	while ((line = errorReader.readLine()) != null) {
+		                    System.out.println(line);
+		                }
+		            }
 		        } catch (IOException | InterruptedException e) {
 		        	exitCode = -1;
 		            e.printStackTrace();
@@ -400,22 +405,22 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 			@Override
 			protected void cancelPressed() {
-				sw.close();
+				curSW.close();
 				setReturnCode(CANCEL);
 				close();
 			}
 
 			// Browse Dialog
 			protected void openLogPressed() {
-				if (!sw.getMode().isFree()) {
-					processAndUpdateOptions(sw.exitRoute());
+				if (!curSW.getMode().isFree()) {
+					processAndUpdateOptions(curSW.exitRoute());
 					updateUI();
 					updateBreakpoints();
 					checkAndHandleDeadlock();
 					updateConsoleArea();
 				} else {
 					FileDialog dlg = new FileDialog(getShell());
-					dlg.setFilterPath(sw.getWorkingDir());
+					dlg.setFilterPath(curSW.getWorkingDir());
 					dlg.setText("File Dialog");
 					String dir = dlg.open(); // get the direction
 					if (dir != null) {
@@ -427,11 +432,11 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 			private boolean loadLog(String path) {
 				// Prompt creation of new log
-				if (sw.isGeneratingLog() && popupDialog("Generate New Log",
+				if (curSW.isGeneratingLog() && popupDialog("Generate New Log",
 						"Loading log will result in creation of new log.") == SWT.CANCEL) {
 					return false;
 				}
-				final IOptionsReply reply = sw.startLogWalk(path);
+				final IOptionsReply reply = curSW.startLogWalk(path);
 				if (reply.isEmpty()) {
 					MessageDialog.openInformation(shell, PLUGIN_NAME,
 							"Failed to load specified log. Please try a different file.");
@@ -445,40 +450,40 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 			}
 
 			protected void skipToStart() {
-				while (!sw.isRouteStart()) {
+				while (!curSW.isRouteStart()) {
 					backPressed();
 				}
 			}
 
 			protected void skipToEnd() {
-				while (!sw.isRouteEnd()) {
+				while (!curSW.isRouteEnd()) {
 					okPressed();
 				}
 			}
 
 			private boolean checkReachability(int bpId) {
-				return sw.isReachable(bpId);
+				return curSW.isReachable(bpId);
 			}
 
 			private void startReachability(int bpId) {
-				processAndUpdateOptions(sw.startReachability(bpId));
+				processAndUpdateOptions(curSW.startReachability(bpId));
 				updateUI();
 				updateConsoleArea();
 			}
 
 			private void removeBreakpoint(int bpId) {
-				sw.removeBreakpoint(bpId);
+				curSW.removeBreakpoint(bpId);
 				postBpRemoval();
 			}
 
 			private void updateBreakpoints() {
-				sw.updateBreakpoints();
+				curSW.updateBreakpoints();
 				updateRemoveAllBpsBtn();
 				bpTableViewer.refresh();
 			}
 
 			private boolean checkAndHandleDeadlock() {
-				if (sw.isDeadlock()) {
+				if (curSW.isDeadlock()) {
 					MessageDialog.openInformation(shell, PLUGIN_NAME,
 							"Environment deadlock has been reached. See steps history in the console");
 					return true;
@@ -495,7 +500,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 
 			@Override
 			protected void replaceBreakpoint(int bpId, String newExpression) {
-				sw.replaceBreakpoint(bpId, newExpression);
+				curSW.replaceBreakpoint(bpId, newExpression);
 				updateBreakpoints();
 			}
 			
@@ -520,12 +525,12 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 				genLogBtn.addSelectionListener(new SelectionAdapter() {
 					@Override
 					public void widgetSelected(SelectionEvent e) {
-						if (sw.isGeneratingLog() && sw.isUserBoth() && sw.getTurn().isSys() && popupDialog(
+						if (curSW.isGeneratingLog() && curSW.isUserBoth() && curSW.getTurn().isSys() && popupDialog(
 								"Exit Log State",
 								"Disabling log generation before SYS completed a step may result in loss of current state.") == SWT.CANCEL) {
 							return;
 						}
-						sw.toggleLog();
+						curSW.toggleLog();
 						updateUI();
 						getDialogArea().redraw();
 					}
@@ -544,7 +549,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 						}
 						String newExp = ddFltrHelper.add(ddFilterLabel.getText(), ddVars.getText(), ddVals.getText());
 
-						handleFilterActionReply(sw.addFilter(newExp, FilterType.DROPDOWN));
+						handleFilterActionReply(curSW.addFilter(newExp, FilterType.DROPDOWN));
 					}
 
 				});
@@ -554,9 +559,9 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 					public void widgetSelected(SelectionEvent e) {
 						String newExp = ddFltrHelper.remove(ddFilterLabel.getText(), ddVars.getText());
 						if (newExp.isBlank()) {
-							handleFilterActionReply(sw.removeFilter(FilterType.DROPDOWN));
+							handleFilterActionReply(curSW.removeFilter(FilterType.DROPDOWN));
 						} else {
-							handleFilterActionReply(sw.addFilter(newExp, FilterType.DROPDOWN));
+							handleFilterActionReply(curSW.addFilter(newExp, FilterType.DROPDOWN));
 						}
 					}
 
@@ -565,7 +570,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 				clearFltrBtn.addSelectionListener(new SelectionAdapter() {
 					@Override
 					public void widgetSelected(SelectionEvent e) {
-						handleFilterActionReply(sw.removeFilter(FilterType.DROPDOWN));
+						handleFilterActionReply(curSW.removeFilter(FilterType.DROPDOWN));
 					}
 				});
 
@@ -575,22 +580,22 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 						String fExp = filterText.getText();
 						IOptionsReply reply;
 						if (fExp.isBlank()) {
-							reply = sw.removeFilter(FilterType.TEXT);
+							reply = curSW.removeFilter(FilterType.TEXT);
 						} else {
-							reply = sw.addFilter(fExp, FilterType.TEXT);
+							reply = curSW.addFilter(fExp, FilterType.TEXT);
 						}
-						if (sw.getMode().isFree()) {
+						if (curSW.getMode().isFree()) {
 							processAndUpdateOptions(reply);
 						}
 						updateUI();
 					}
 				});
 
-				filterText.setText(sw.getFilterSummary(FilterType.TEXT).getExpression());
+				filterText.setText(curSW.getFilterSummary(FilterType.TEXT).getExpression());
 
-				consoleTableViewer.setInput(sw.getStepsSoFar());
+				consoleTableViewer.setInput(curSW.getStepsSoFar());
 
-				bpList = sw.getBreakpointsList();
+				bpList = curSW.getBreakpointsList();
 				bpTableViewer.setInput(bpList);
 
 				// update last selected breakpoint field
@@ -603,7 +608,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 							if (e.y <= y) {
 								lastSelectedBpIndex = i;
 								removeBpBtn.setEnabled(true);
-								if (sw.getMode().isFree() && bpList.get(lastSelectedBpIndex).eval().isValid()) {
+								if (curSW.getMode().isFree() && bpList.get(lastSelectedBpIndex).eval().isValid()) {
 									reachabilityBtn.setEnabled(true);
 								}
 								break;
@@ -617,7 +622,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 					@Override
 					public void widgetSelected(SelectionEvent e) {
 						// Add breakpoint button has been pressed.
-						sw.addNewBreakpoint();
+						curSW.addNewBreakpoint();
 						updateBreakpoints();
 					}
 				});
@@ -638,7 +643,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 								"All breakpoints will be removed and can only be restored manually.") == SWT.CANCEL) {
 							return;
 						}
-						sw.removeAllBreakpoints();
+						curSW.removeAllBreakpoints();
 						postBpRemoval();
 					}
 				});
@@ -646,8 +651,8 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 				varsBtn.addSelectionListener(new SelectionAdapter() {
 					@Override
 					public void widgetSelected(SelectionEvent e) {
-						DisplayedOptions DO = sw.getMode().isFree() ? dispOpts : null;
-						VarsDialog vd = new VarsDialog(shell, mask, DO ,sw.getTurn(), sw.getMode().isFree());
+						DisplayedOptions DO = curSW.getMode().isFree() ? dispOpts : null;
+						VarsDialog vd = new VarsDialog(shell, mask, DO ,curSW.getTurn(), curSW.getMode().isFree());
 						vd.open();
 						updatePossibleStepsListView();
 					}
@@ -685,13 +690,13 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 					
 				});
 
-				processAndUpdateOptions(sw.getDisplayOptions());
+				processAndUpdateOptions(curSW.getDisplayOptions());
 				updateUI();
 				updateBreakpoints();
 			}
 
 			private void handleFilterActionReply(IOptionsReply reply) {
-				if (sw.getMode().isFree()) {
+				if (curSW.getMode().isFree()) {
 					processAndUpdateOptions(reply);
 				}
 				updateUI();
@@ -726,7 +731,7 @@ public class ControllerWalkerAction extends SyntechAction<ControllerWalkerAction
 		return dialog.open();
 	}
 
-	private SymbolicWalker createNewSymbolicWalker(Preferences preferences, Modules userModule) {
+	private SymbolicWalker createNewSymbolicWalker(Preferences preferences, Modules userModule, IFile specFile) {
 		ConsolePrinter consolePrinter;
 		try {
 			consolePrinter = new ConsolePrinter(PLUGIN_NAME, ConsolePrinter.CLEAR_CONSOLE);
